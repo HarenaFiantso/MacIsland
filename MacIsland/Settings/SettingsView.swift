@@ -14,10 +14,12 @@ struct SettingsView: View {
                 .tabItem { Label("Modules", systemImage: "square.grid.2x2") }
             ActivitiesSettingsView()
                 .tabItem { Label("Live Activities", systemImage: "bolt.badge.clock") }
+            SoundsSettingsView()
+                .tabItem { Label("Sounds", systemImage: "speaker.wave.2") }
             AboutSettingsView()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 540, height: 470)
+        .frame(width: 560, height: 520)
     }
 }
 
@@ -184,6 +186,10 @@ struct ActivitiesSettingsView: View {
             Section("Show in the notch when…") {
                 Toggle("Volume or mute changes", isOn: $preferences.volumeActivityEnabled)
                 Toggle("Power is connected / disconnected, battery is low", isOn: $preferences.batteryActivityEnabled)
+                Toggle("Low Power Mode turns on", isOn: $preferences.lowPowerActivityEnabled)
+                Toggle("A calendar event starts", isOn: $preferences.calendarEventActivityEnabled)
+                    .disabled(!preferences.calendarEnabled)
+                Toggle("The screen is unlocked", isOn: $preferences.unlockActivityEnabled)
                 Toggle("A timer is running (stays until it ends)", isOn: $preferences.timerActivityEnabled)
                 Toggle("Files are dropped on the shelf", isOn: $preferences.shelfActivityEnabled)
             }
@@ -193,6 +199,82 @@ struct ActivitiesSettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+// MARK: - Sounds
+
+struct SoundsSettingsView: View {
+    @EnvironmentObject private var preferences: Preferences
+
+    var body: some View {
+        Form {
+            Section("Sounds") {
+                Toggle("Play sounds", isOn: $preferences.soundsEnabled)
+                SoundRow(sound: .volume, isOn: $preferences.volumeFeedbackSound)
+                SoundRow(sound: .lock, isOn: $preferences.lockSound)
+                SoundRow(sound: .unlock, isOn: $preferences.unlockSound)
+                SoundRow(sound: .lowBattery, isOn: $preferences.lowBatterySound)
+                SoundRow(sound: .lowPower, isOn: $preferences.lowPowerSound)
+                SoundRow(sound: .event, isOn: $preferences.calendarEventSound)
+                SoundRow(sound: .chime, isOn: $preferences.hourlyChime)
+                Text(volumeFeedbackNote)
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            .disabled(!preferences.soundsEnabled)
+            Section("Launch") {
+                Toggle("Say hello in the notch when MacIsland starts", isOn: $preferences.greetAtLaunch)
+                SoundRow(sound: .blips, title: "Play the greeting jingle", isOn: $preferences.greetingSound)
+                    .disabled(!preferences.soundsEnabled)
+                HStack {
+                    Text("Preview the greeting")
+                    Spacer()
+                    Button("Say Hello") { AppCoordinator.shared.greet() }
+                }
+            }
+            Section("Haptics") {
+                Toggle("Haptic feedback when the island opens or closes", isOn: $preferences.hapticsEnabled)
+                Text("Force Touch trackpads only; macOS only plays it while a finger rests on the trackpad.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            Section {
+                Text(filesNote)
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var volumeFeedbackNote: String {
+        if SystemSoundPreferences.volumeFeedbackEnabled {
+            return "macOS already plays its own feedback when the volume changes (System Settings › Sound), so the island stays quiet to avoid a double pop."
+        }
+        return "Short sounds use the sound-effects output device and the alert volume, exactly like macOS's own feedback."
+    }
+
+    private var filesNote: String {
+        let bundled = IslandSound.allCases.filter(\.isBundled).count
+        return "\(bundled) of \(IslandSound.allCases.count) sound files are bundled with this build; the rest use sounds that ship with macOS. See Scripts/import-alcove-sounds.sh."
+    }
+}
+
+private struct SoundRow: View {
+    let sound: IslandSound
+    var title: String? = nil
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack {
+            Toggle(title ?? sound.title, isOn: $isOn)
+            Button {
+                AppCoordinator.shared.sound.preview(sound)
+            } label: {
+                Image(systemName: "play.circle")
+            }
+            .buttonStyle(.borderless)
+            .help(sound.isBundled ? "Bundled file" : "macOS fallback sound")
+            .disabled(sound.url == nil)
+        }
     }
 }
 

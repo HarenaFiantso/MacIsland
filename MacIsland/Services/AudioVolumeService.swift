@@ -17,7 +17,8 @@ final class AudioVolumeService {
     }
 
     private(set) var snapshot = Snapshot()
-    @ObservationIgnored var onChange: ((Snapshot) -> Void)?
+    /// Called with (new, old) whenever the volume or mute state changes.
+    @ObservationIgnored var onChange: ((Snapshot, Snapshot) -> Void)?
 
     @ObservationIgnored private var deviceID = AudioObjectID(kAudioObjectUnknown)
     @ObservationIgnored private var volumeAddress: AudioObjectPropertyAddress?
@@ -110,7 +111,7 @@ final class AudioVolumeService {
         // Some drivers fire once right after registration; ignore the warm-up.
         guard Date().timeIntervalSince(startedAt) > 1.5 else { return }
         if new.volume != old.volume || new.isMuted != old.isMuted {
-            onChange?(new)
+            onChange?(new, old)
         }
     }
 

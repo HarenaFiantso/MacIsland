@@ -4,7 +4,7 @@
 import Foundation
 let command = CommandLine.arguments.dropFirst().joined(separator: " ")
 guard !command.isEmpty else {
-    print("usage: island-cmd.swift <open|close|toggle|tab:shelf|media:toggle|activity:volume|timer:start:90|dump>")
+    print("usage: island-cmd.swift <open|close|toggle|tab:shelf|media:toggle|activity:volume|timer:start:90|hello|sound:lock|lock:on|space:dump|dump>")
     exit(1)
 }
 DistributedNotificationCenter.default().postNotificationName(

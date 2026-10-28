@@ -40,8 +40,12 @@ struct BatterySnapshot: Equatable {
 @Observable
 final class BatteryService {
     private(set) var snapshot = BatterySnapshot()
+    /// Low Power Mode (System Settings › Battery), observed through ProcessInfo.
+    private(set) var isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
     @ObservationIgnored var onChange: ((BatterySnapshot, BatterySnapshot) -> Void)?
+    @ObservationIgnored var onLowPowerModeChanged: ((Bool) -> Void)?
     @ObservationIgnored private var runLoopSource: CFRunLoopSource?
+    @ObservationIgnored private var powerStateObserver: NSObjectProtocol?
 
     func start() {
         snapshot = Self.read()
@@ -56,7 +60,18 @@ final class BatteryService {
         }
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+        powerStateObserver = NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.lowPowerModeChanged() }
+        }
         Log.system.notice("battery: \(self.snapshot.level)% plugged=\(self.snapshot.isPluggedIn) charging=\(self.snapshot.isCharging)")
+    }
+
+    private func lowPowerModeChanged() {
+        let enabled = ProcessInfo.processInfo.isLowPowerModeEnabled
+        guard enabled != isLowPowerMode else { return }
+        isLowPowerMode = enabled
+        Log.system.notice("low power mode \(enabled ? "on" : "off", privacy: .public)")
+        onLowPowerModeChanged?(enabled)
     }
 
     func update() {

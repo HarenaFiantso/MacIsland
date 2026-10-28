@@ -145,6 +145,13 @@ final class IslandViewModel: Identifiable {
         if modeChanged {
             onModeChanged?(next.mode)
             if next.mode == .collapsed { scheduleShrinkIfIdle() }
+            if next.mode == .expanded {
+                // The greeting is a launch flourish; the user taking over ends it.
+                activities.dismissTransient(kind: .greeting)
+            }
+            if preferences.hapticsEnabled, next.mode == .expanded || oldMode == .expanded {
+                Haptics.perform(.alignment)
+            }
             hoverRecheck?()
         }
     }

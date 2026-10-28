@@ -17,3 +17,7 @@ Packages/IslandCore/.swiftpm/
 
 # macOS
 .DS_Store
+
+# Alcove's sound files, imported locally with Scripts/import-alcove-sounds.sh.
+# Never commit them: they are Alcove's assets (a build without them uses macOS sounds).
+MacIsland/Resources/Sounds/

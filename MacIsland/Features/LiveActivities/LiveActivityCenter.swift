@@ -55,6 +55,12 @@ final class LiveActivityCenter {
         publish()
     }
 
+    /// Dismisses the transient activity only if it is of `kind`.
+    func dismissTransient(kind: LiveActivityKind) {
+        guard transient?.kind == kind else { return }
+        dismissTransient()
+    }
+
     func dismissAll() {
         expiryTask?.cancel()
         transient = nil

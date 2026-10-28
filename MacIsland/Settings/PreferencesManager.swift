@@ -139,9 +139,27 @@ class Preferences: ObservableObject {
     // Live activities
     @Pref("activities.volume") var volumeActivityEnabled = true
     @Pref("activities.battery") var batteryActivityEnabled = true
+    @Pref("activities.lowPower") var lowPowerActivityEnabled = true
     @Pref("activities.timer") var timerActivityEnabled = true
     @Pref("activities.shelf") var shelfActivityEnabled = true
+    @Pref("activities.calendarEvent") var calendarEventActivityEnabled = true
+    @Pref("activities.unlock") var unlockActivityEnabled = true
     @Pref("activities.duration") var liveActivityDuration = 2.0
+
+    // Sounds (Alcove's set) and haptics
+    @Pref("sound.enabled") var soundsEnabled = true
+    @Pref("sound.volumeFeedback") var volumeFeedbackSound = true
+    @Pref("sound.lock") var lockSound = true
+    @Pref("sound.unlock") var unlockSound = true
+    @Pref("sound.lowBattery") var lowBatterySound = true
+    @Pref("sound.lowPower") var lowPowerSound = true
+    @Pref("sound.calendarEvent") var calendarEventSound = true
+    @Pref("sound.hourlyChime") var hourlyChime = false
+    @Pref("sound.greeting") var greetingSound = true
+    @Pref("behavior.haptics") var hapticsEnabled = true
+
+    // Launch
+    @Pref("launch.greeting") var greetAtLaunch = true
 
     func resetToDefaults() {
         objectWillChange.send()

@@ -28,6 +28,8 @@ final class CalendarService {
 
     @ObservationIgnored private let store = EKEventStore()
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
+    /// Called after every refresh (event alerts reschedule from it).
+    @ObservationIgnored var onEventsChanged: (() -> Void)?
 
     var hasAccess: Bool { status == .fullAccess }
     var isDenied: Bool { status == .denied || status == .restricted }
@@ -90,6 +92,7 @@ final class CalendarService {
             )
         }
         lastRefresh = Date()
+        onEventsChanged?()
     }
 
     /// Cheap refresh when the panel opens (EventKit already pushes changes).

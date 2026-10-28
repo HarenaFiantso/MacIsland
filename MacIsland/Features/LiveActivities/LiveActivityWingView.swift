@@ -25,6 +25,8 @@ struct LiveActivityWingView: View {
                 if case .battery(let level, let charging, let pluggedIn) = activity.payload {
                     BatteryWing(side: side, kind: activity.kind, level: level, charging: charging, pluggedIn: pluggedIn)
                 }
+            case .lowPower:
+                LowPowerWing(side: side)
             case .timer:
                 TimerWing(side: side)
             case .timerFinished:
@@ -33,7 +35,102 @@ struct LiveActivityWingView: View {
                 if case .count(let count) = activity.payload {
                     ShelfDropWing(side: side, count: count)
                 }
+            case .calendarEvent:
+                if case .event(let title, let tint) = activity.payload {
+                    CalendarEventWing(side: side, title: title, tint: tint)
+                }
+            case .unlocked:
+                UnlockedWing(side: side)
+            case .greeting:
+                EmptyView() // drawn by GreetingView, not as wings
             }
+        }
+    }
+}
+
+// MARK: - Low Power Mode
+
+struct LowPowerWing: View {
+    let side: WingSide
+
+    var body: some View {
+        switch side {
+        case .leading:
+            Image(systemName: "battery.50percent")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(IslandDesign.warning)
+                .padding(.leading, 11)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        case .trailing:
+            Text("Low Power")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(IslandDesign.warning)
+                .lineLimit(1)
+                .padding(.trailing, 12)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+}
+
+// MARK: - Calendar event starting
+
+struct CalendarEventWing: View {
+    let side: WingSide
+    let title: String
+    let tint: Color
+
+    var body: some View {
+        switch side {
+        case .leading:
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .fill(tint)
+                    .frame(width: 3, height: 14)
+                Image(systemName: "calendar")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .padding(.leading, 11)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        case .trailing:
+            Text(title)
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.trailing, 12)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+}
+
+// MARK: - Unlocked
+
+struct UnlockedWing: View {
+    let side: WingSide
+    @State private var open = false
+
+    var body: some View {
+        switch side {
+        case .leading:
+            Image(systemName: open ? "lock.open.fill" : "lock.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(IslandDesign.positive)
+                .contentTransition(.symbolEffect(.replace))
+                .padding(.leading, 11)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .onAppear {
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(220))
+                        withAnimation(.easeOut(duration: 0.25)) { open = true }
+                    }
+                }
+        case .trailing:
+            Text("Unlocked")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(IslandDesign.positive)
+                .padding(.trailing, 12)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 }

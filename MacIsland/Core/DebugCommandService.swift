@@ -7,7 +7,8 @@ import IslandCore
 ///
 ///   swift Scripts/island-cmd.swift open | close | toggle | tab:shelf | media:toggle |
 ///         media:next | media:prev | activity:volume | activity:charging | activity:shelf |
-///         timer:start:90 | timer:reset | dump
+///         timer:start:90 | timer:reset | hello | sound:lock | lock:on | lock:off |
+///         space:dump | dump
 ///
 /// Compiled out of Release builds.
 @MainActor
@@ -58,6 +59,10 @@ final class DebugCommandService {
             case "charging": activities.present(LiveActivity(kind: .charging, duration: 3, payload: .battery(level: coordinator.battery.snapshot.level, charging: true, pluggedIn: true)))
             case "battery": activities.present(LiveActivity(kind: .lowBattery, duration: 3, payload: .battery(level: 9, charging: false, pluggedIn: false)))
             case "shelf": activities.present(LiveActivity(kind: .shelfDrop, duration: 2, payload: .count(3)))
+            case "lowpower": activities.present(LiveActivity(kind: .lowPower, duration: 3))
+            case "event": activities.present(LiveActivity(kind: .calendarEvent, duration: 4, payload: .event(title: "Design review", tint: .orange)))
+            case "unlock": activities.present(LiveActivity(kind: .unlocked, duration: 3))
+            case "greeting": activities.present(LiveActivity(kind: .greeting, duration: LiveActivity.greetingDuration))
             case "nowplaying": if let t = coordinator.media.track { activities.present(LiveActivity(kind: .nowPlaying, duration: 3, payload: .nowPlaying(trackID: t.id))) }
             case "dismiss": activities.dismissAll()
             default: break
@@ -78,6 +83,21 @@ final class DebugCommandService {
                 coordinator.shelf.removeAll()
             }
         case "settings": SettingsOpener.open()
+        case "hello": coordinator.greet()
+        case "sound":
+            if parts.count > 1, let sound = IslandSound(rawValue: parts[1]) {
+                coordinator.sound.preview(sound)
+            } else {
+                Log.app.error("unknown sound; valid: \(IslandSound.allCases.map(\.rawValue).joined(separator: ","), privacy: .public)")
+            }
+        case "lock":
+            // Simulates the lock-screen notifications end to end (hide/show + sounds).
+            let name = parts.count > 1 && parts[1] == "on" ? "com.apple.screenIsLocked" : "com.apple.screenIsUnlocked"
+            DistributedNotificationCenter.default().postNotificationName(Notification.Name(name), object: nil, userInfo: nil, deliverImmediately: true)
+        case "space":
+            for line in coordinator.windowManager.spaceDiagnostics() {
+                Log.app.notice("space: \(line, privacy: .public)")
+            }
         case "dump": dump()
         default: Log.app.error("unknown debug command \(command, privacy: .public)")
         }
@@ -99,6 +119,11 @@ final class DebugCommandService {
         Log.app.notice("dump calendar: status=\(self.coordinator.calendar.status.rawValue) events=\(self.coordinator.calendar.events.count) upcoming=\(self.coordinator.calendar.upcoming.count)")
         Log.app.notice("dump shelf: \(self.coordinator.shelf.items.map(\.name).joined(separator: ", "), privacy: .public)")
         Log.app.notice("dump timer: \(String(describing: self.coordinator.timer.phase), privacy: .public) remaining=\(self.coordinator.timer.remaining())")
+        for line in coordinator.windowManager.spaceDiagnostics() {
+            Log.app.notice("dump \(line, privacy: .public)")
+        }
+        let sounds = IslandSound.allCases.map { "\($0.rawValue)=\($0.isBundled ? "bundled" : ($0.url == nil ? "missing" : "fallback"))" }
+        Log.app.notice("dump sounds: \(sounds.joined(separator: " "), privacy: .public) systemFeedback=\(SystemSoundPreferences.volumeFeedbackEnabled)")
     }
 }
 #endif
