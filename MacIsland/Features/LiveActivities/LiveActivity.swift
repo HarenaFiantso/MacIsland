@@ -12,7 +12,7 @@ enum LiveActivityKind: Equatable {
     case shelfDrop
     case calendarEvent
     case unlocked
-    /// The launch "Hello": a bubble under the notch rather than two wings.
+    /// The launch "hello": a bubble under the notch rather than two wings.
     case greeting
 
     /// Width of each wing (left and right of the notch) while the activity shows.
@@ -27,14 +27,14 @@ enum LiveActivityKind: Equatable {
         case .shelfDrop: return 56
         case .calendarEvent: return 98
         case .unlocked: return 70
-        case .greeting: return 56
+        case .greeting: return 50
         }
     }
 
     /// Extra height below the notch band (the greeting hangs under the notch).
     var extraHeight: CGFloat {
         switch self {
-        case .greeting: return 40
+        case .greeting: return 54
         default: return 0
         }
     }
