@@ -4,13 +4,10 @@ import IslandCore
 
 /// File shelf: drop zone when empty, grid of draggable tiles otherwise.
 struct ShelfView: View {
-    enum Mode { case compact, full }
-
-    let mode: Mode
     @Environment(ShelfStore.self) private var shelf
     @Environment(IslandViewModel.self) private var island
 
-    private var tile: CGFloat { mode == .full ? 68 : 56 }
+    private let tile: CGFloat = 68
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

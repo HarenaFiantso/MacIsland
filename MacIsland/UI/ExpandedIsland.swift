@@ -36,7 +36,7 @@ struct ExpandedIslandView: View {
     private var moduleContent: some View {
         switch model.selectedTab {
         case .home: HomeView()
-        case .shelf: ShelfView(mode: .full)
+        case .shelf: ShelfView()
         case .calendar: CalendarView()
         case .timer: TimerView()
         }
@@ -155,33 +155,23 @@ extension IslandTab {
     }
 }
 
-/// Home: media on the left, shelf on the right (NotchNook-style split).
+/// Home: the now-playing card across the whole panel. The shelf has its own tab.
 struct HomeView: View {
     @EnvironmentObject private var preferences: Preferences
 
     var body: some View {
-        GeometryReader { geo in
-            HStack(spacing: IslandDesign.bodyPadding) {
-                if preferences.mediaEnabled {
-                    MediaPlayerView()
-                        .frame(width: preferences.shelfEnabled ? geo.size.width * 0.56 : geo.size.width)
-                }
-                if preferences.shelfEnabled {
-                    ShelfView(mode: .compact)
-                        .frame(maxWidth: .infinity)
-                }
-                if !preferences.mediaEnabled && !preferences.shelfEnabled {
-                    VStack(spacing: 6) {
-                        Image(systemName: "rectangle.topthird.inset.filled")
-                            .font(.system(size: 22))
-                            .foregroundStyle(IslandDesign.tertiary)
-                        Text("Enable a module in Settings")
-                            .font(IslandDesign.label(12))
-                            .foregroundStyle(IslandDesign.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+        if preferences.mediaEnabled {
+            MediaPlayerView()
+        } else {
+            VStack(spacing: 6) {
+                Image(systemName: "rectangle.topthird.inset.filled")
+                    .font(.system(size: 22))
+                    .foregroundStyle(IslandDesign.tertiary)
+                Text("Enable the media player in Settings")
+                    .font(IslandDesign.label(12))
+                    .foregroundStyle(IslandDesign.secondary)
             }
         }
     }
 }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
