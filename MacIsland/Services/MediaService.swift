@@ -333,6 +333,8 @@ final class MediaService {
     private(set) var playback = PlaybackState.stopped
     private(set) var artwork: NSImage?
     private(set) var artworkTint: Color?
+    /// The artwork's dominant colours, most prominent first (empty until the artwork loads).
+    private(set) var artworkPalette: [Color] = []
     private(set) var activeSource: MediaSource?
     private(set) var permissionDeniedSources: Set<MediaSource> = []
     private(set) var lastError: String?
@@ -341,7 +343,7 @@ final class MediaService {
     @ObservationIgnored var onTrackChanged: ((NowPlayingTrack) -> Void)?
 
     @ObservationIgnored private var providers: [ScriptedMediaProvider] = []
-    @ObservationIgnored private var artworkCache: [String: (NSImage, Color?)] = [:]
+    @ObservationIgnored private var artworkCache: [String: (NSImage, Color?, [Color])] = [:]
     @ObservationIgnored private var artworkTask: Task<Void, Never>?
 
     var isPlaying: Bool { track != nil && playback.isPlaying }
@@ -413,6 +415,7 @@ final class MediaService {
                 track = nil
                 artwork = nil
                 artworkTint = nil
+                artworkPalette = []
                 activeSource = nil
                 playback = .stopped
             }
@@ -437,19 +440,24 @@ final class MediaService {
         if let cached = artworkCache[cacheKey] {
             artwork = cached.0
             artworkTint = cached.1
+            artworkPalette = cached.2
             return
         }
         artwork = nil
         artworkTint = nil
+        artworkPalette = []
         artworkTask = Task { [weak self] in
             guard let image = await provider.fetchArtwork(for: track) else { return }
-            let tint = await Task.detached(priority: .utility) { image.dominantTint() }.value
+            let (tint, palette) = await Task.detached(priority: .utility) {
+                (image.dominantTint(), image.dominantPalette())
+            }.value
             guard !Task.isCancelled, let self, self.track?.id == track.id else { return }
             if artworkCache.count > 12 { artworkCache.removeAll() }
-            artworkCache[cacheKey] = (image, tint)
+            artworkCache[cacheKey] = (image, tint, palette)
             withAnimation(.easeInOut(duration: 0.35)) {
                 self.artwork = image
                 self.artworkTint = tint
+                self.artworkPalette = palette
             }
         }
     }
@@ -478,5 +486,80 @@ extension NSImage {
         hsb.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
         let lifted = NSColor(hue: h, saturation: min(1, max(s, 0.35)), brightness: max(b, 0.72), alpha: 1)
         return Color(nsColor: lifted)
+    }
+
+    /// The artwork's dominant colours, most prominent first: the most populated
+    /// hue/saturation/brightness buckets of a 32 × 32 downsample, colourful ones first,
+    /// lifted so they glow on black. Greys only fill in when the cover has nothing else.
+    nonisolated func dominantPalette(count: Int = 3) -> [Color] {
+        guard let tiff = tiffRepresentation, let ciImage = CIImage(data: tiff) else { return [] }
+        let extent = ciImage.extent
+        guard extent.width > 0, extent.height > 0 else { return [] }
+        let side = 32
+        let scaled = ciImage
+            .transformed(by: CGAffineTransform(translationX: -extent.minX, y: -extent.minY))
+            .transformed(by: CGAffineTransform(scaleX: CGFloat(side) / extent.width, y: CGFloat(side) / extent.height))
+        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+        let context = CIContext(options: [.workingColorSpace: NSNull()])
+        context.render(scaled, toBitmap: &pixels, rowBytes: side * 4, bounds: CGRect(x: 0, y: 0, width: side, height: side), format: .RGBA8, colorSpace: nil)
+
+        struct Bucket { var count = 0; var r = 0.0, g = 0.0, b = 0.0 }
+        var buckets: [Int: Bucket] = [:]
+        for offset in stride(from: 0, to: pixels.count, by: 4) {
+            let r = Double(pixels[offset]) / 255, g = Double(pixels[offset + 1]) / 255, b = Double(pixels[offset + 2]) / 255
+            let (h, s, v) = Self.hsv(r, g, b)
+            if v < 0.1 { continue } // near-black: that is the island's own background
+            let key = s < 0.14 ? 1000 + Int(v * 3) : Int(h * 12) * 9 + Int(s * 3) * 3 + Int(v * 3)
+            buckets[key, default: Bucket()].count += 1
+            buckets[key, default: Bucket()].r += r
+            buckets[key, default: Bucket()].g += g
+            buckets[key, default: Bucket()].b += b
+        }
+        guard !buckets.isEmpty else { return [] }
+
+        let averaged: [(count: Int, h: Double, s: Double, v: Double)] = buckets.values.map { bucket in
+            let n = Double(bucket.count)
+            let (h, s, v) = Self.hsv(bucket.r / n, bucket.g / n, bucket.b / n)
+            return (bucket.count, h, s, v)
+        }
+        // Colourful buckets rank above greys of the same size.
+        let ranked = averaged.sorted { Double($0.count) * (0.2 + $0.s) > Double($1.count) * (0.2 + $1.s) }
+
+        var chosen: [(h: Double, s: Double, v: Double)] = []
+        for candidate in ranked where chosen.count < count {
+            // Same hue family counts once, unless it is a clearly lighter or darker variant.
+            let tooClose = chosen.contains { picked in
+                let hueGap = abs(picked.h - candidate.h)
+                let sameHue = min(hueGap, 1 - hueGap) < 0.06
+                let bothGrey = picked.s < 0.14 && candidate.s < 0.14
+                return (sameHue && !bothGrey && abs(picked.v - candidate.v) < 0.5) || (bothGrey && abs(picked.v - candidate.v) < 0.3)
+            }
+            if !tooClose { chosen.append((candidate.h, candidate.s, candidate.v)) }
+        }
+        return chosen.map { c in
+            // Greys stay dim (a fog, not a floodlight); colours are lifted so they glow.
+            let grey = c.s < 0.14
+            return Color(nsColor: NSColor(
+                hue: c.h,
+                saturation: grey ? c.s : min(1, max(c.s, 0.45)),
+                brightness: grey ? min(max(c.v, 0.35), 0.55) : max(c.v, 0.6),
+                alpha: 1
+            ))
+        }
+    }
+
+    nonisolated private static func hsv(_ r: Double, _ g: Double, _ b: Double) -> (Double, Double, Double) {
+        let maxC = max(r, g, b), minC = min(r, g, b)
+        let delta = maxC - minC
+        var h = 0.0
+        if delta > 0.0001 {
+            if maxC == r { h = ((g - b) / delta).truncatingRemainder(dividingBy: 6) }
+            else if maxC == g { h = (b - r) / delta + 2 }
+            else { h = (r - g) / delta + 4 }
+            h /= 6
+            if h < 0 { h += 1 }
+        }
+        let s = maxC > 0 ? delta / maxC : 0
+        return (h, s, maxC)
     }
 }

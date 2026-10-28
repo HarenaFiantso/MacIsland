@@ -15,7 +15,7 @@ struct MediaPlayerView: View {
 
     private func player(_ track: NowPlayingTrack) -> some View {
         GeometryReader { geo in
-            let art = min(geo.size.height, 112)
+            let art = min(geo.size.height, 124)
             HStack(alignment: .top, spacing: 14) {
                 ArtworkView(image: media.artwork, size: art, cornerRadius: 14)
                     .onTapGesture { openPlayer(track.source) }

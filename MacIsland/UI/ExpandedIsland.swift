@@ -24,12 +24,33 @@ struct ExpandedIslandView: View {
             .padding(.bottom, IslandDesign.bodyPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .background(alignment: .bottom) { artworkGlow }
         .onAppear {
             media.refreshNow()
             if preferences.calendarEnabled { calendar.refreshIfStale() }
             ensureSelectedTabEnabled()
         }
         .onChange(of: enabledTabs) { ensureSelectedTabEnabled() }
+    }
+
+    /// Ambient colour under the Home module: the artwork's dominant colours glowing
+    /// along the bottom edge of the panel.
+    private var showsArtworkGlow: Bool {
+        model.selectedTab == .home && preferences.mediaEnabled && media.track != nil && !media.artworkPalette.isEmpty
+    }
+
+    private var artworkGlow: some View {
+        ZStack(alignment: .bottom) {
+            if showsArtworkGlow {
+                ArtworkGlowView(colors: media.artworkPalette, cornerRadius: model.metrics.expanded.radii.bottom)
+                    .frame(height: model.metrics.expanded.bodySize.height * 0.72)
+                    .opacity(media.isPlaying ? 1 : 0.55)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.6), value: showsArtworkGlow)
+        .animation(.easeInOut(duration: 0.6), value: media.isPlaying)
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
@@ -171,7 +192,7 @@ struct HomeView: View {
                     .font(IslandDesign.label(12))
                     .foregroundStyle(IslandDesign.secondary)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
