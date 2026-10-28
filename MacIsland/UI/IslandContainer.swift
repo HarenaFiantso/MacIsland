@@ -24,10 +24,17 @@ struct IslandContainer: View {
                     .padding(.horizontal, expanded.radii.top)
                     .transition(.islandContent(speed: speed))
             case .collapsed, .peek:
-                WingsView(model: model)
-                    .frame(width: layout.bodySize.width, height: layout.bodySize.height)
-                    .padding(.horizontal, layout.radii.top)
-                    .transition(.islandContent(speed: speed))
+                if case .activity(let activity) = model.wingsContent, activity.kind == .greeting {
+                    GreetingView(notchSize: model.geometry.notchSize, speed: speed)
+                        .frame(width: layout.bodySize.width, height: layout.bodySize.height)
+                        .padding(.horizontal, layout.radii.top)
+                        .transition(.islandContent(speed: speed))
+                } else {
+                    WingsView(model: model)
+                        .frame(width: layout.bodySize.width, height: layout.bodySize.height)
+                        .padding(.horizontal, layout.radii.top)
+                        .transition(.islandContent(speed: speed))
+                }
             }
         }
         .frame(width: layout.totalSize.width, height: layout.totalSize.height, alignment: .top)
