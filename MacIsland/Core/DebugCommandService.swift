@@ -8,7 +8,7 @@ import IslandCore
 ///   swift Scripts/island-cmd.swift open | close | toggle | tab:shelf | media:toggle |
 ///         media:next | media:prev | activity:volume | activity:charging | activity:shelf |
 ///         timer:start:90 | timer:reset | hello | sound:lock | lock:on | lock:off |
-///         space:dump | dump
+///         settings | settings:media | settings:close | space:dump | dump
 ///
 /// Compiled out of Release builds.
 @MainActor
@@ -82,7 +82,18 @@ final class DebugCommandService {
             } else if parts.count > 1, parts[1] == "clear" {
                 coordinator.shelf.removeAll()
             }
-        case "settings": SettingsOpener.open()
+        case "settings":
+            if parts.count > 1, parts[1] == "close" {
+                SettingsWindowController.shared.window?.close()
+                return
+            }
+            SettingsOpener.open()
+            if parts.count > 1, let section = SettingsSection(rawValue: parts[1]) {
+                // A freshly created window subscribes on its first layout pass; post after it.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    NotificationCenter.default.post(name: SettingsView.selectSectionNotification, object: section)
+                }
+            }
         case "hello": coordinator.greet()
         case "sound":
             if parts.count > 1, let sound = IslandSound(rawValue: parts[1]) {
