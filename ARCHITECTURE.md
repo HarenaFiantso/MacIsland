@@ -179,9 +179,11 @@ Low Power Mode from `ProcessInfo`. `Haptics` performs an `.alignment` trackpad p
 when the island opens or closes.
 
 The launch greeting is a transient live activity of kind `.greeting`: the only
-activity with `extraHeight` (40 pt), so the island becomes a bubble hanging under the
-notch rather than two wings, and `IslandContainer` draws `GreetingView` ("Hello", one
-letter after the other, a waving hand, a shimmer) instead of `WingsView`. It plays
+activity with `extraHeight` (50 pt), so the island becomes a bubble hanging under the
+notch rather than two wings, and `IslandContainer` draws `GreetingView` instead of
+`WingsView`. The view writes "hello" by hand, like a new Mac's setup assistant: one
+continuous cursive stroke (`HelloStroke`, a Catmull-Rom spline through recorded pen
+positions, scaled to the bubble) revealed with `trim` over 1.9 s at 1× speed. It plays
 `blips` at 60 % volume 0.15 s in (Alcove's parameters), lasts 5.2 s and is dismissed
 early if the user opens the island.
 
@@ -197,7 +199,12 @@ Two providers (`ScriptedMediaProvider`) for Music and Spotify, public APIs only:
 - the position is extrapolated in the UI (`PlaybackState.position(at:)`) and re-synced
   every 5 s only while the panel is open and playing;
 - artwork: HTTPS URL (Spotify) or `data of artwork 1` (Music), 12-entry cache, dominant
-  tint through `CIAreaAverage` to colour the bars and the scrubber.
+  tint through `CIAreaAverage` to colour the bars and the scrubber, and a palette of up
+  to three dominant colours (most populated hue/saturation/brightness buckets of a
+  32 × 32 downsample, colourful ones first) for the glow at the bottom of the Home
+  panel. `ArtworkGlowView` draws that glow as radial `CAGradientLayer` blobs drifting
+  and breathing under repeating Core Animation keyframes, masked by a vertical fade:
+  like the playback bars, nothing runs on the main thread per frame.
 
 Note: `st` is a reserved word in Spotify's scripting dictionary (error −2741); the
 scripts use `playerState`.
@@ -217,7 +224,7 @@ In Debug builds, `DebugCommandService` listens to the distributed notification
 ```
 swift Scripts/island-cmd.swift open | close | toggle | hover:in | hover:out |
     tab:shelf | media:toggle | activity:volume:0.6 | activity:greeting | timer:start:90 |
-    shelf:add:/path | hello | sound:lock | lock:on | lock:off | space:dump | dump
+    shelf:add:/path | hello | sound:lock | lock:on | lock:off | settings:media | space:dump | dump
 ```
 
 Log: `/usr/bin/log stream --predicate 'subsystem == "com.macisland.MacIsland"' --level debug`.

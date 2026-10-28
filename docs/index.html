@@ -68,9 +68,15 @@
     100% { width: 560px; height: 176px; border-radius: 0 0 28px 28px; }
   }
   .island .head { display: flex; align-items: center; justify-content: space-between; padding: 0 14px; font-size: 11px; color: var(--fg-faint); }
-  .island .body { display: grid; grid-template-columns: 1.2fr 1fr; gap: 14px; padding: 6px 14px 14px; opacity: 0; animation: fade .5s ease-out 1.35s both; }
+  .island .body { position: relative; padding: 6px 14px 14px; opacity: 0; animation: fade .5s ease-out 1.35s both; }
+  .island .glow { position: absolute; inset: auto 0 0 0; height: 70%; pointer-events: none; border-radius: 0 0 24px 24px; overflow: hidden; }
+  .island .glow i { position: absolute; bottom: -40%; width: 60%; aspect-ratio: 1; border-radius: 50%; filter: blur(22px); opacity: .55; animation: drift 9s ease-in-out infinite alternate; }
+  .island .glow i:nth-child(1) { left: -10%; background: #3b7a57; }
+  .island .glow i:nth-child(2) { left: 30%; background: #6ee7a0; animation-duration: 12s; }
+  .island .glow i:nth-child(3) { left: 60%; background: #e8ffe9; animation-duration: 15s; opacity: .35; }
+  @keyframes drift { from { transform: translateX(-8%) scale(.9); } to { transform: translateX(8%) scale(1.1); } }
+  .media { position: relative; display: flex; gap: 12px; }
   @keyframes fade { to { opacity: 1; } }
-  .media { display: flex; gap: 12px; }
   .art { width: 86px; height: 86px; border-radius: 14px; background: linear-gradient(135deg, #3b7a57, #6ee7a0 60%, #e8ffe9); flex: none; }
   .meta { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: space-between; }
   .meta .t { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -82,7 +88,6 @@
   @keyframes bar { from { height: 25%; } to { height: 100%; } }
   .progress { height: 3px; background: rgba(255,255,255,.18); border-radius: 2px; overflow: hidden; }
   .progress b { display: block; width: 38%; height: 100%; background: var(--tint); }
-  .shelf { border: 1.5px dashed rgba(255,255,255,.22); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--fg-faint); }
 
   header.hero { padding: 54px 0 34px; text-align: center; }
   h1 { font-size: clamp(34px, 6vw, 56px); letter-spacing: -0.02em; margin: 0 0 10px; font-weight: 700; }
@@ -112,8 +117,6 @@
   @media (max-width: 640px) {
     .screen { height: 150px; }
     .island { width: 92vw !important; height: 110px; }
-    .island .body { grid-template-columns: 1fr; }
-    .shelf { display: none; }
     .art { width: 56px; height: 56px; }
   }
 </style>
@@ -132,7 +135,7 @@
             <div class="progress"><b></b></div>
           </div>
         </div>
-        <div class="shelf">Drop files here</div>
+        <div class="glow"><i></i><i></i><i></i></div>
       </div>
     </div>
   </div>

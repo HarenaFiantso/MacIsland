@@ -22,12 +22,13 @@ leaves, on Escape, on a click elsewhere or on a click in its header. Displays wi
 notch get a virtual one, sized to taste.
 
 **Media.** Artwork, title and artist (scrolling when long), play/pause, previous/next,
-a scrubber with elapsed and remaining time, and playback bars tinted with the artwork
-colour. Apple Music and Spotify are driven through their public scripting interfaces
+a scrubber with elapsed and remaining time, playback bars tinted with the artwork
+colour, and a slow glow along the bottom of the panel in the artwork's dominant
+colours. Apple Music and Spotify are driven through their public scripting interfaces
 and their playback notifications: nothing polls while idle.
 
-**File shelf.** Drag files onto the notch: the island opens on the shelf, drop to park
-them. Drag them back out into the Finder or any app, reorder by dragging, click for
+**File shelf.** Drag files onto the notch: the island opens on the shelf tab, drop to
+park them. Drag them back out into the Finder or any app, reorder by dragging, click for
 Quick Look, double-click to open. The shelf survives relaunches.
 
 **Calendar.** Today's date, the next seven days of events with calendar colours, and a
@@ -44,8 +45,9 @@ track change (artwork + bars), volume or mute, power connected/disconnected, low
 battery (20 / 10 / 5 %), Low Power Mode, a calendar event starting, screen unlocked,
 running timer, timer finished, files dropped.
 
-**Hello.** At launch the notch says hello — a bubble with a waving hand and the word
-settling in letter by letter, with a short jingle — then folds back into the notch.
+**Hello.** At launch the notch says hello — the word written by hand under the notch
+in one cursive stroke, the way a new Mac greets you, with a short jingle — then folds
+back into the notch.
 
 **Sounds and haptics.** The same cues as Alcove: a pop when the volume changes
 (quiet when macOS's own feedback is on), lock and unlock, low battery, Low Power Mode,
@@ -60,10 +62,11 @@ them falls back to sounds that ship with macOS.
 Space above every desktop and full-screen app, so switching desktops leaves the island
 exactly where the notch is instead of sliding it away with the old desktop.
 
-**Settings.** Hover behaviour and delays, panel size, animation speed, displays,
-virtual notch size, modules on/off, preferred player, live-activity toggles and
-durations, every sound with a preview button, haptics, the launch greeting, launch at
-login, reset. Everything persists.
+**Settings.** A System Settings-style window: sections in a sidebar, one page each
+with grouped rows and short explanations. Hover behaviour and delays, panel size,
+animation speed, displays, virtual notch size, modules on/off, preferred player,
+live-activity toggles and durations, every sound with a preview button, haptics, the
+launch greeting, launch at login, reset. Everything persists.
 
 ## Install
 
@@ -181,7 +184,7 @@ Debug builds accept commands over a distributed notification, so the island can 
 driven without a mouse:
 
 ```bash
-swift Scripts/island-cmd.swift open | close | hover:in | hover:out | tab:shelf | media:toggle | activity:volume:0.6 | timer:start:60 | dump
+swift Scripts/island-cmd.swift open | close | hover:in | hover:out | tab:shelf | media:toggle | activity:volume:0.6 | timer:start:60 | hello | settings:media | dump
 swift Scripts/list-windows.swift         # real frame of the island window
 /usr/bin/log stream --predicate 'subsystem == "com.macisland.MacIsland"' --level debug
 ```
