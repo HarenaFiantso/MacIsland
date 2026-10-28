@@ -10,7 +10,9 @@ it. Inspired by NotchNook, written from scratch in Swift.
 
 - macOS 14 Sonoma or later, Apple silicon and Intel
 - Swift · SwiftUI · AppKit · Core Animation · EventKit · IOKit · Core Audio · Quick Look
-- No private APIs, no third-party dependencies, no analytics
+- One private API (the window-server Space that keeps the island still while desktops
+  slide; resolved at run time, with a public fallback), no third-party dependencies,
+  no analytics
 
 ## Features
 
@@ -39,11 +41,29 @@ reliable estimate, adapter wattage.
 
 **Live activities.** The collapsed island grows symmetric wings for a few seconds:
 track change (artwork + bars), volume or mute, power connected/disconnected, low
-battery (20 / 10 / 5 %), running timer, timer finished, files dropped.
+battery (20 / 10 / 5 %), Low Power Mode, a calendar event starting, screen unlocked,
+running timer, timer finished, files dropped.
+
+**Hello.** At launch the notch says hello — a bubble with a waving hand and the word
+settling in letter by letter, with a short jingle — then folds back into the notch.
+
+**Sounds and haptics.** The same cues as Alcove: a pop when the volume changes
+(quiet when macOS's own feedback is on), lock and unlock, low battery, Low Power Mode,
+calendar event, an optional hourly chime, the greeting jingle, and a trackpad tick
+when the island opens or closes. Short sounds play through the sound-effects device
+at the alert volume, like the system's. The sound files are not part of the
+repository (they are Alcove's); `Scripts/import-alcove-sounds.sh` copies them from a
+local Alcove into the git-ignored `MacIsland/Resources/Sounds/`, and a build without
+them falls back to sounds that ship with macOS.
+
+**Stays put across desktops.** The island windows live in a private window-server
+Space above every desktop and full-screen app, so switching desktops leaves the island
+exactly where the notch is instead of sliding it away with the old desktop.
 
 **Settings.** Hover behaviour and delays, panel size, animation speed, displays,
 virtual notch size, modules on/off, preferred player, live-activity toggles and
-durations, launch at login, reset. Everything persists.
+durations, every sound with a preview button, haptics, the launch greeting, launch at
+login, reset. Everything persists.
 
 ## Install
 

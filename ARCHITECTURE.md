@@ -13,10 +13,13 @@ the event flow and the technical decisions that matter.
 │         ├─ Preferences (UserDefaults, ObservableObject)               │
 │         ├─ Services: MediaService · ShelfStore · CalendarService       │
 │         │            BatteryService · AudioVolumeService · TimerModel  │
+│         │            SoundService · ScreenStateService                 │
 │         │            LaunchAtLoginService · NotificationService        │
 │         ├─ LiveActivityCenter (transient + sticky activity queue)     │
+│         ├─ CalendarAlertScheduler (event-start activity + sound)      │
 │         ├─ EventMonitor (outside clicks, Escape)                      │
 │         └─ NotchWindowManager ── one IslandWindowController per screen│
+│                ├─ IslandSpace (private window-server Space)           │
 │                                     ├─ IslandPanel (NSPanel)          │
 │                                     ├─ IslandHostingView (NSHostingView)│
 │                                     └─ IslandViewModel (@Observable)  │
@@ -59,9 +62,28 @@ screen edge; the total shape width is body + 2 × `topRadius`.
 ## Window strategy (the sensitive part)
 
 `IslandPanel`: borderless `NSPanel`, `.nonactivatingPanel`, level `mainMenu + 3`,
-`[.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]`, transparent,
-no shadow, `constrainFrameRect` overridden to a no-op (otherwise AppKit pushes any
-window below the menu bar — the first bug observed: the island appeared at y = 55).
+`[.stationary, .fullScreenAuxiliary, .ignoresCycle]`, transparent, no shadow,
+`constrainFrameRect` overridden to a no-op (otherwise AppKit pushes any window below
+the menu bar — the first bug observed: the island appeared at y = 55).
+
+**A Space of its own.** The panels do *not* use `.canJoinAllSpaces`. Such a window is
+a member of every user Space, so during a desktop switch the WindowServer draws it
+twice — sliding out with the old desktop and in with the new one — and the island
+visibly moves while the notch does not (the second bug observed, by comparison with
+Alcove). `IslandSpace` instead creates one private Space through the private CGS API
+(`CGSSpaceCreate(cid, 1, nil)`, `CGSSpaceSetAbsoluteLevel(…, 400)`, `CGSShowSpaces`)
+and moves every panel into it (`CGSAddWindowsToSpaces`, then
+`CGSRemoveWindowsFromSpaces` for the user Space the window was created in). A Space at
+absolute level 400 is composited above every desktop and full-screen app, ignores
+Mission Control and takes no part in the switch animation — this is what the Dock,
+Notification Center and Alcove 1.7.7 do (observed in its binary: same calls, same
+level). The functions are resolved with `dlsym`, never linked; if one is missing,
+`IslandSpace.isAvailable` is false and the panel falls back to `.canJoinAllSpaces`.
+Ordering a window in puts it back into the active user Space, so `ensureVisible()`
+re-attaches after every `orderFront`. While the screen is locked or the screen saver
+runs the panels are ordered out (`ScreenStateService`), because that Space would
+otherwise draw over the lock screen. `space:dump` (debug) logs each panel's Space
+membership.
 
 **Fixed canvas, moving viewport.** The `NSHostingView` always keeps the size of the
 expanded panel (≈ 768 × 232 pt). The window is only a viewport over it: collapsed, it
@@ -135,6 +157,34 @@ on top of at most one *sticky* activity (the timer). Observers (`willChange` /
 Core Audio (volume/mute), IOKit (power connected, fully charged, 20/10/5 % thresholds),
 MediaService (track change), ShelfStore (drop), TimerModel.
 
+## Sounds, haptics and the greeting
+
+`SoundService` plays the cue set observed in Alcove (`volume`, `lock`, `unlock`,
+`low-battery`, `low-power`, `chime`, `event`, `blips`…). File names are looked up in
+the bundle first (`MacIsland/Resources/Sounds/`, git-ignored, filled by
+`Scripts/import-alcove-sounds.sh` from a local Alcove — its files must not be
+redistributed) and fall back to sounds that ship with macOS. Alcove's `volume.caf` carries
+the same audio as the macOS feedback sound (`BezelServices.loginPlugin/…/volume.aiff`,
+decoded samples correlate at 1.0), so that fallback is identical. Short CAF/AIFF files go through
+`AudioServicesPlaySystemSound`: sound-effects output device, alert volume, exactly like
+the system's feedback (inaudible at volume 0, as Apple's is). Compressed jingles go
+through `AVAudioPlayer` (volume, start delay). The volume pop is gated by
+`VolumeFeedbackGate` (IslandCore, tested): one pop per 1/16 step, none while muted,
+at most ~12 per second, and never when macOS's own "Play feedback when volume is
+changed" is on (`com.apple.sound.beep.feedback`), to avoid a double pop. The hourly
+chime is an off-by-default timer; calendar events are announced by
+`CalendarAlertScheduler` (activity + `event` sound at start time); lock/unlock come
+from the `com.apple.screenIsLocked` / `screenIsUnlocked` distributed notifications;
+Low Power Mode from `ProcessInfo`. `Haptics` performs an `.alignment` trackpad pattern
+when the island opens or closes.
+
+The launch greeting is a transient live activity of kind `.greeting`: the only
+activity with `extraHeight` (40 pt), so the island becomes a bubble hanging under the
+notch rather than two wings, and `IslandContainer` draws `GreetingView` ("Hello", one
+letter after the other, a waving hand, a shimmer) instead of `WingsView`. It plays
+`blips` at 60 % volume 0.15 s in (Alcove's parameters), lasts 5.2 s and is dismissed
+early if the user opens the island.
+
 ## Media
 
 Two providers (`ScriptedMediaProvider`) for Music and Spotify, public APIs only:
@@ -166,7 +216,8 @@ In Debug builds, `DebugCommandService` listens to the distributed notification
 
 ```
 swift Scripts/island-cmd.swift open | close | toggle | hover:in | hover:out |
-    tab:shelf | media:toggle | activity:volume:0.6 | timer:start:90 | shelf:add:/path | dump
+    tab:shelf | media:toggle | activity:volume:0.6 | activity:greeting | timer:start:90 |
+    shelf:add:/path | hello | sound:lock | lock:on | lock:off | space:dump | dump
 ```
 
 Log: `/usr/bin/log stream --predicate 'subsystem == "com.macisland.MacIsland"' --level debug`.
