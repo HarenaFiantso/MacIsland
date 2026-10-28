@@ -5,11 +5,13 @@ import AppKit
 /// Why these flags:
 /// - `.nonactivatingPanel`: clicking the island never steals focus from the front app.
 /// - level `mainMenu + 3`: above the menu bar (where the notch lives) but below menus/alerts.
-/// - `.canJoinAllSpaces` + `.fullScreenAuxiliary`: visible on every Space, including
-///   full-screen apps (the island then floats over the app, as NotchNook does).
 /// - `.stationary` + `.ignoresCycle`: untouched by Mission Control / Exposé and ⌘`.
+/// - `.fullScreenAuxiliary`: may show over full-screen apps.
+/// - Space membership: the panel normally lives in the app's private Space
+///   (`IslandSpace`), which is what keeps it still while desktops slide. Only when
+///   that is unavailable does it fall back to `.canJoinAllSpaces`.
 final class IslandPanel: NSPanel {
-    init(contentRect: NSRect) {
+    init(contentRect: NSRect, usesPrivateSpace: Bool) {
         super.init(
             contentRect: contentRect,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -18,7 +20,9 @@ final class IslandPanel: NSPanel {
         )
         isFloatingPanel = true
         level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)
-        collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
+        collectionBehavior = usesPrivateSpace
+            ? [.stationary, .fullScreenAuxiliary, .ignoresCycle]
+            : [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false

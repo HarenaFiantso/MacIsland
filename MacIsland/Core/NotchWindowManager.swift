@@ -3,13 +3,16 @@ import SwiftUI
 import IslandCore
 
 /// Creates one `IslandWindowController` per eligible screen and keeps them in sync
-/// with display changes and preferences.
+/// with display changes, Space changes, screen lock and preferences.
 @MainActor
 final class NotchWindowManager {
     private unowned let coordinator: AppCoordinator
     private var controllers: [CGDirectDisplayID: IslandWindowController] = [:]
     private var reconcileTask: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
+    /// True while the screen is locked or the screen saver runs: the panels are
+    /// ordered out so nothing of ours is drawn over the lock screen.
+    private(set) var isHidden = false
 
     init(coordinator: AppCoordinator) {
         self.coordinator = coordinator
@@ -21,11 +24,12 @@ final class NotchWindowManager {
         observers.append(center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.screensChanged() }
         })
-        observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
+        let workspace = NSWorkspace.shared.notificationCenter
+        observers.append(workspace.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.screensChanged() }
         })
-        observers.append(NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.controllers.values.forEach { $0.ensureVisible() } }
+        observers.append(workspace.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in self?.activeSpaceChanged() }
         })
     }
 
@@ -36,6 +40,16 @@ final class NotchWindowManager {
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
             self?.reconcileScreens()
+        }
+    }
+
+    /// The panels live in their own Space, so a desktop switch leaves them in place.
+    /// The pointer, however, may now rest elsewhere: re-evaluate hover (it can only
+    /// end one) so an island opened by hover does not stay open on the new desktop.
+    private func activeSpaceChanged() {
+        for controller in controllers.values {
+            controller.ensureVisible()
+            controller.hostingView.recheckHover()
         }
     }
 
@@ -50,7 +64,8 @@ final class NotchWindowManager {
             } else {
                 let controller = IslandWindowController(geometry: geometry, coordinator: coordinator, manager: self)
                 controllers[geometry.displayID] = controller
-                Log.window.notice("island created on display \(geometry.displayID) notch=\(geometry.notchSize.width)x\(geometry.notchSize.height) physical=\(geometry.hasPhysicalNotch)")
+                if isHidden { controller.setHidden(true) }
+                Log.window.notice("island created on display \(geometry.displayID) notch=\(geometry.notchSize.width)x\(geometry.notchSize.height) physical=\(geometry.hasPhysicalNotch) privateSpace=\(IslandSpace.shared.isAvailable)")
             }
         }
         for (id, controller) in controllers where !seen.contains(id) {
@@ -69,6 +84,15 @@ final class NotchWindowManager {
             controller.model.syncBehavior()
             controller.refreshFrame()
         }
+    }
+
+    /// Hides every island (screen locked / screen saver) or brings them back.
+    func setHidden(_ hidden: Bool) {
+        guard hidden != isHidden else { return }
+        isHidden = hidden
+        if hidden { closeAll() }
+        controllers.values.forEach { $0.setHidden(hidden) }
+        Log.window.notice("islands \(hidden ? "hidden" : "shown", privacy: .public)")
     }
 
     func expandedStateChanged() {
@@ -99,6 +123,15 @@ final class NotchWindowManager {
     func toggleAll() {
         if isAnyIslandExpanded { closeAll() } else { openAll() }
     }
+
+    /// One line per panel: window number, Space membership, visibility (debug dump).
+    func spaceDiagnostics() -> [String] {
+        controllers.values.map { controller in
+            let number = controller.panel.windowNumber
+            let spaces = IslandSpace.shared.spaces(containing: number).map { "\($0)" } ?? "unknown"
+            return "window \(number) display \(controller.model.id) spaces=\(spaces) private=\(IslandSpace.shared.currentSpaceID) visible=\(controller.panel.isVisible) onActiveSpace=\(controller.panel.isOnActiveSpace)"
+        }
+    }
 }
 
 /// Owns the panel + hosting view for one screen.
@@ -116,6 +149,7 @@ final class IslandWindowController {
     private let containerView = NSView()
     private(set) var footprint: IslandFootprint = .full
     private var isTornDown = false
+    private var isHidden = false
 
     init(geometry: NotchGeometry, coordinator: AppCoordinator, manager: NotchWindowManager) {
         model = IslandViewModel(
@@ -138,7 +172,7 @@ final class IslandWindowController {
         containerView.addSubview(hostingView)
 
         let full = geometry.topCenteredFrame(size: model.metrics.windowSize)
-        panel = IslandPanel(contentRect: full)
+        panel = IslandPanel(contentRect: full, usesPrivateSpace: IslandSpace.shared.isAvailable)
         containerView.frame = NSRect(origin: .zero, size: full.size)
         hostingView.frame = NSRect(origin: .zero, size: full.size)
         panel.contentView = containerView
@@ -150,6 +184,7 @@ final class IslandWindowController {
         model.onModeChanged = { [weak manager] _ in manager?.expandedStateChanged() }
 
         panel.orderFrontRegardless()
+        IslandSpace.shared.attach(panel)
         // Start small: the window only covers the notch until something needs more room.
         apply(footprint: .collapsed, force: true)
     }
@@ -192,14 +227,28 @@ final class IslandWindowController {
         ensureVisible()
     }
 
+    /// Orders the panel back in if needed and re-asserts its private-Space membership
+    /// (ordering a window in puts it back into the active user Space).
     func ensureVisible() {
-        guard !isTornDown else { return }
+        guard !isTornDown, !isHidden else { return }
         if !panel.isVisible { panel.orderFrontRegardless() }
+        IslandSpace.shared.attach(panel)
+    }
+
+    func setHidden(_ hidden: Bool) {
+        guard !isTornDown, hidden != isHidden else { return }
+        isHidden = hidden
+        if hidden {
+            panel.orderOut(nil)
+        } else {
+            ensureVisible()
+        }
     }
 
     func tearDown() {
         isTornDown = true
         model.tearDown()
+        IslandSpace.shared.detach(panel)
         panel.orderOut(nil)
         panel.contentView = nil
     }
