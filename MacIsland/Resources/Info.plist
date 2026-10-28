@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Accessory app: no Dock icon, no main menu bar. The island lives in NSPanels + a status item. -->
+	<key>LSUIElement</key>
+	<true/>
+	<!-- Required to control Music / Spotify through Apple Events (Automation permission prompt). -->
+	<key>NSAppleEventsUsageDescription</key>
+	<string>MacIsland needs to talk to Music and Spotify to show what is playing and control playback from the notch.</string>
+	<!-- Calendar module (EventKit). macOS 14+ uses the Full Access key; the legacy key keeps older systems happy. -->
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>MacIsland shows your upcoming events inside the notch.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>MacIsland shows your upcoming events inside the notch.</string>
+	<key>NSSupportsAutomaticTermination</key>
+	<false/>
+	<key>NSSupportsSuddenTermination</key>
+	<false/>
+</dict>
+</plist>

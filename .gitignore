@@ -1,0 +1,19 @@
+# Build products
+build/
+DerivedData/
+dist/
+package/*.dmg
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/IslandCore/.build/
+Packages/IslandCore/.swiftpm/
+
+# macOS
+.DS_Store
