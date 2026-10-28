@@ -164,6 +164,12 @@ swift Scripts/list-windows.swift         # real frame of the island window
 /usr/bin/log stream --predicate 'subsystem == "com.macisland.MacIsland"' --level debug
 ```
 
+## Contributing
+
+Issues and pull requests are welcome. Commits follow
+[Conventional Commits](https://www.conventionalcommits.org/) — see
+[CONTRIBUTING.md](CONTRIBUTING.md) for the types, scopes and release steps.
+
 ## Project layout
 
 ```
