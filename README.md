@@ -88,8 +88,10 @@ pick your team under *Signing & Capabilities* (an *Apple Development* certificat
 enough): permissions then stick.
 
 The app is **not sandboxed** (see `MacIsland/Resources/MacIsland.entitlements`); the
-hardened runtime is on, with the `com.apple.security.automation.apple-events`
-entitlement required to control Music and Spotify.
+hardened runtime is on, so each protected resource needs its entitlement:
+`com.apple.security.automation.apple-events` to control Music and Spotify, and
+`com.apple.security.personal-information.calendars` for the Calendar permission prompt.
+Without them the hardened runtime denies access silently, without asking the user.
 
 ### Packaging a DMG
 

@@ -166,7 +166,9 @@ struct ModulesSettingsView: View {
         case .writeOnly: return "Write-only (events cannot be read)"
         case .denied: return "Denied"
         case .restricted: return "Restricted"
-        case .notDetermined: return "Not requested yet"
+        case .notDetermined:
+            if let error = calendar.lastError { return "Request failed: \(error)" }
+            return "Not requested yet"
         @unknown default: return "Unknown"
         }
     }

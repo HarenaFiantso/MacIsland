@@ -7,15 +7,21 @@
 	   - the File Shelf keeps arbitrary user files across launches (bookmarks without security scope),
 	   - Apple Events to Music/Spotify need only the TCC "Automation" consent, not a sandbox exception.
 	 If you later want a sandboxed build (App Store), enable it here and add:
-	   com.apple.security.automation.apple-events = YES
-	   com.apple.security.personal-information.calendars = YES
 	   com.apple.security.files.user-selected.read-write = YES
 	 and switch ShelfStore to security-scoped bookmarks.
 	-->
 	<key>com.apple.security.app-sandbox</key>
 	<false/>
-	<!-- Hardened runtime: this resource-access entitlement is REQUIRED to send Apple Events (Music/Spotify control). -->
+	<!--
+	 The hardened runtime is ON, so every protected resource needs its "Resource Access"
+	 entitlement below. Without it TCC denies the request silently: no permission prompt,
+	 the authorization status just stays "not determined".
+	-->
+	<!-- Apple Events: REQUIRED to control Music / Spotify (Automation prompt). -->
 	<key>com.apple.security.automation.apple-events</key>
+	<true/>
+	<!-- Calendar (EventKit): REQUIRED for requestFullAccessToEvents() to show the Calendar prompt. -->
+	<key>com.apple.security.personal-information.calendars</key>
 	<true/>
 </dict>
 </plist>

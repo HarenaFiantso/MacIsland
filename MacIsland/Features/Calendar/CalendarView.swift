@@ -66,6 +66,12 @@ struct CalendarView: View {
                 Text("MacIsland reads your events locally to show what is next.")
                     .font(IslandDesign.label(10.5))
                     .foregroundStyle(IslandDesign.tertiary)
+                if let error = calendar.lastError {
+                    Text(error)
+                        .font(IslandDesign.label(10))
+                        .foregroundStyle(IslandDesign.negative)
+                        .lineLimit(2)
+                }
                 if calendar.isDenied {
                     IslandPillButton(title: "Open Privacy Settings", systemImage: "lock.shield") { PrivacyPane.calendars.open() }
                 } else {

@@ -47,7 +47,13 @@ final class CalendarService {
         do {
             let granted = try await store.requestFullAccessToEvents()
             status = EKEventStore.authorizationStatus(for: .event)
-            lastError = nil
+            if !granted, status == .notDetermined {
+                // TCC refused without prompting (typically: hardened runtime without the
+                // com.apple.security.personal-information.calendars entitlement, or a broken signature).
+                lastError = "macOS refused the request without asking. Check the app signature and entitlements."
+            } else {
+                lastError = nil
+            }
             Log.calendar.notice("calendar access \(granted ? "granted" : "denied", privacy: .public)")
             if granted { refresh() }
         } catch {
