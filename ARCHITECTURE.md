@@ -179,11 +179,16 @@ Low Power Mode from `ProcessInfo`. `Haptics` performs an `.alignment` trackpad p
 when the island opens or closes.
 
 The launch greeting is a transient live activity of kind `.greeting`: the only
-activity with `extraHeight` (50 pt), so the island becomes a bubble hanging under the
+activity with `extraHeight` (54 pt), so the island becomes a bubble hanging under the
 notch rather than two wings, and `IslandContainer` draws `GreetingView` instead of
-`WingsView`. The view writes "hello" by hand, like a new Mac's setup assistant: one
-continuous cursive stroke (`HelloStroke`, a Catmull-Rom spline through recorded pen
-positions, scaled to the bubble) revealed with `trim` over 1.9 s at 1× speed. It plays
+`WingsView`. The view writes "hello" in the very handwriting a new Mac's setup
+assistant draws: macOS ships that handwriting as cubic Bézier strokes in the Hello
+screen saver (`Hello.appex/Contents/Resources/Languages/<lang>.json`, © Apple), and
+`HelloGlyph.current` reads the English file from the system at launch, so nothing of
+Apple's is copied into the project. `HelloGlyphShape` trims each stroke in turn along
+the pen's travel (2.3 s at 1× speed), lifting the pen between strokes where the
+handwriting does; on a system without the file it falls back to a Catmull-Rom spline
+recorded by hand (`HelloGlyph.fallback`). It plays
 `blips` at 60 % volume 0.15 s in (Alcove's parameters), lasts 5.2 s and is dismissed
 early if the user opens the island.
 

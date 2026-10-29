@@ -45,9 +45,9 @@ track change (artwork + bars), volume or mute, power connected/disconnected, low
 battery (20 / 10 / 5 %), Low Power Mode, a calendar event starting, screen unlocked,
 running timer, timer finished, files dropped.
 
-**Hello.** At launch the notch says hello — the word written by hand under the notch
-in one cursive stroke, the way a new Mac greets you, with a short jingle — then folds
-back into the notch.
+**Hello.** At launch the notch says hello — the word written under the notch in the
+very handwriting a new Mac greets you with (read from macOS's own Hello screen saver
+at launch, nothing copied), with a short jingle — then folds back into the notch.
 
 **Sounds and haptics.** The same cues as Alcove: a pop when the volume changes
 (quiet when macOS's own feedback is on), lock and unlock, low battery, Low Power Mode,
