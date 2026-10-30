@@ -363,7 +363,7 @@ struct MediaSettingsView: View {
             } header: {
                 Text("Player")
             } footer: {
-                Text("Music and Spotify are controlled through Apple Events (their public scripting API). Other players, including browsers, expose no public now-playing API on macOS.")
+                Text("Music and Spotify are controlled through Apple Events (their public scripting API), Lyrify through distributed notifications. Other players, including browsers, expose no public now-playing API on macOS.")
             }
 
             Section {
@@ -385,7 +385,7 @@ struct MediaSettingsView: View {
             return "Denied for " + media.permissionDeniedSources.map(\.displayName).sorted().joined(separator: ", ")
         }
         if media.track != nil { return "Working — \(media.activeSource?.displayName ?? "player") responds" }
-        if media.runningSources.isEmpty { return "Neither Music nor Spotify is running" }
+        if media.runningSources.isEmpty { return "None of Music, Spotify or Lyrify is running" }
         return "Granted or not yet requested — press Test now to trigger the prompt"
     }
 }
