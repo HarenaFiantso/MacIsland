@@ -226,9 +226,9 @@ extension HelloGlyph {
         }
         guard !strokes.isEmpty else { return nil }
         // The pen width barely varies along the word; the setup assistant draws it uniform,
-        // and a shade thicker than the screen saver's ribbon (which also reads better small).
+        // and half again as thick as the screen saver's ribbon, a bolder hand that also reads better small.
         let width = widths.isEmpty ? 36 : widths.reduce(0, +) / Double(widths.count)
-        return HelloGlyph(strokes: strokes, designLineWidth: width * 1.2)
+        return HelloGlyph(strokes: strokes, designLineWidth: width * 1.5)
     }
 }
 
@@ -267,6 +267,6 @@ extension HelloGlyph {
                 control2: CGPoint(x: p2.x - (p3.x - p1.x) / 6, y: p2.y - (p3.y - p1.y) / 6)
             )
         }
-        return HelloGlyph(strokes: [path], designLineWidth: 3.8)
+        return HelloGlyph(strokes: [path], designLineWidth: 4.75)
     }()
 }
