@@ -194,7 +194,8 @@ early if the user opens the island.
 
 ## Media
 
-Two providers (`ScriptedMediaProvider`) for Music and Spotify, public APIs only:
+`MediaService` aggregates one `MediaProvider` per player. Two of them
+(`ScriptedMediaProvider`) drive Music and Spotify, public APIs only:
 
 - distributed notifications `com.apple.Music.playerInfo` and
   `com.spotify.client.PlaybackStateChanged` ⇒ one AppleScript round trip per change
@@ -203,7 +204,7 @@ Two providers (`ScriptedMediaProvider`) for Music and Spotify, public APIs only:
 - `tell application id "…"` plus an `isRunning` check so a player is never launched;
 - the position is extrapolated in the UI (`PlaybackState.position(at:)`) and re-synced
   every 5 s only while the panel is open and playing;
-- artwork: HTTPS URL (Spotify) or `data of artwork 1` (Music), 12-entry cache, dominant
+- artwork: HTTPS URL (Spotify, Lyrify) or `data of artwork 1` (Music), 12-entry cache, dominant
   tint through `CIAreaAverage` to colour the bars and the scrubber, and a palette of up
   to three dominant colours (most populated hue/saturation/brightness buckets of a
   32 × 32 downsample, colourful ones first) for the glow at the bottom of the Home
@@ -213,6 +214,14 @@ Two providers (`ScriptedMediaProvider`) for Music and Spotify, public APIs only:
 
 Note: `st` is a reserved word in Spotify's scripting dictionary (error −2741); the
 scripts use `playerState`.
+
+The third one, `LyrifyMediaProvider`, drives Lyrify, a sandboxed Flutter player with no
+scripting dictionary. A sandboxed app may only post distributed notifications without a
+userInfo, so both directions carry their payload in the notification's object string:
+Lyrify posts its state as JSON (`state`, `position`, `duration`, `id`, `title`,
+`artist`, `album`, `artwork`) on `com.lyrify.lyrify.nowPlaying` whenever the track,
+play/pause or the position changes, and the island posts `playpause`, `next`,
+`previous`, `seek:<seconds>` and `refresh` on `com.lyrify.lyrify.command`.
 
 ## Preferences
 
