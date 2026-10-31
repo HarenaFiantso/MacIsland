@@ -8,6 +8,7 @@ import CoreImage
 enum MediaSource: String, CaseIterable, Sendable, Identifiable {
     case music = "com.apple.Music"
     case spotify = "com.spotify.client"
+    case lyrify = "com.lyrify.lyrify"
 
     var id: String { rawValue }
     var bundleID: String { rawValue }
@@ -16,6 +17,7 @@ enum MediaSource: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .music: return "Music"
         case .spotify: return "Spotify"
+        case .lyrify: return "Lyrify"
         }
     }
 
@@ -23,6 +25,7 @@ enum MediaSource: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .music: return "music.note"
         case .spotify: return "waveform"
+        case .lyrify: return "music.mic"
         }
     }
 
@@ -31,6 +34,7 @@ enum MediaSource: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .music: return Notification.Name("com.apple.Music.playerInfo")
         case .spotify: return Notification.Name("com.spotify.client.PlaybackStateChanged")
+        case .lyrify: return Notification.Name("com.lyrify.lyrify.nowPlaying")
         }
     }
 }
@@ -80,12 +84,42 @@ struct RawSnapshot: Sendable {
     var trackID: String
 }
 
-// MARK: - Provider (AppleScript + distributed notifications)
+// MARK: - Provider
+
+/// One player, as `MediaService` sees it: what it plays now, and its transport.
+@MainActor
+protocol MediaProvider: AnyObject {
+    var source: MediaSource { get }
+    var snapshot: ProviderSnapshot? { get }
+    var lastChange: Date { get }
+    var permissionDenied: Bool { get }
+    var lastError: String? { get }
+    var onUpdate: (() -> Void)? { get set }
+    var isRunning: Bool { get }
+
+    func start()
+    func stop()
+    func scheduleRefresh()
+    func refresh() async
+    func togglePlayPause() async
+    func nextTrack() async
+    func previousTrack() async
+    func seek(to seconds: TimeInterval) async
+    func fetchArtwork(for track: NowPlayingTrack) async -> NSImage?
+}
+
+extension MediaProvider {
+    var isRunning: Bool {
+        !NSRunningApplication.runningApplications(withBundleIdentifier: source.bundleID).isEmpty
+    }
+}
+
+// MARK: - Scripted provider (AppleScript + distributed notifications)
 
 /// One player (Music or Spotify). Entirely event-driven: the player's distributed
 /// notification triggers a single AppleScript round-trip; nothing polls while idle.
 @MainActor
-final class ScriptedMediaProvider {
+final class ScriptedMediaProvider: MediaProvider {
     let source: MediaSource
     private(set) var snapshot: ProviderSnapshot?
     private(set) var lastChange = Date.distantPast
@@ -99,11 +133,8 @@ final class ScriptedMediaProvider {
     private let runner = AppleScriptRunner.shared
 
     init(source: MediaSource) {
+        precondition(source != .lyrify, "Lyrify has no scripting dictionary: see LyrifyMediaProvider")
         self.source = source
-    }
-
-    var isRunning: Bool {
-        !NSRunningApplication.runningApplications(withBundleIdentifier: source.bundleID).isEmpty
     }
 
     func start() {
@@ -235,10 +266,8 @@ final class ScriptedMediaProvider {
 
     func fetchArtwork(for track: NowPlayingTrack) async -> NSImage? {
         switch source {
-        case .spotify:
-            guard let url = track.artworkURL else { return nil }
-            guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
-            return NSImage(data: data)
+        case .spotify, .lyrify:
+            return await NSImage.download(track.artworkURL)
         case .music:
             guard isRunning else { return nil }
             let script = """
@@ -299,6 +328,8 @@ final class ScriptedMediaProvider {
                 error errMsg number errNum
             end try
             """
+        case .lyrify:
+            preconditionFailure("Lyrify has no scripting dictionary: see LyrifyMediaProvider")
         }
     }
 
@@ -323,6 +354,128 @@ final class ScriptedMediaProvider {
     }
 }
 
+// MARK: - Lyrify provider (distributed notifications both ways)
+
+/// Lyrify, a Flutter player with no scripting dictionary. It is sandboxed, and a
+/// sandboxed app may only post distributed notifications without a userInfo, so both
+/// directions carry their payload in the notification's object string: Lyrify posts
+/// its state as JSON on `com.lyrify.lyrify.nowPlaying` whenever the track, play/pause
+/// or the position (a seek) changes, and the island posts its commands — `playpause`,
+/// `next`, `previous`, `seek:<seconds>`, `refresh` — on `com.lyrify.lyrify.command`.
+@MainActor
+final class LyrifyMediaProvider: MediaProvider {
+    let source = MediaSource.lyrify
+    private(set) var snapshot: ProviderSnapshot?
+    private(set) var lastChange = Date.distantPast
+    let permissionDenied = false
+    private(set) var lastError: String?
+    var onUpdate: (() -> Void)?
+
+    private var observers: [NSObjectProtocol] = []
+    private static let commandNotificationName = Notification.Name("com.lyrify.lyrify.command")
+
+    /// What Lyrify says; times in seconds.
+    private struct Payload: Decodable {
+        var state: String
+        var position: Double
+        var duration: Double
+        var id: String
+        var title: String
+        var artist: String
+        var album: String
+        var artwork: String?
+    }
+
+    func start() {
+        let dnc = DistributedNotificationCenter.default()
+        observers.append(dnc.addObserver(forName: source.playbackNotificationName, object: nil, queue: .main) { [weak self] note in
+            let json = note.object as? String
+            Task { @MainActor in self?.receive(json) }
+        })
+
+        let wnc = NSWorkspace.shared.notificationCenter
+        observers.append(wnc.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { [weak self] note in
+            guard let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication else { return }
+            let bundleID = app.bundleIdentifier
+            Task { @MainActor in
+                guard let self, bundleID == self.source.bundleID else { return }
+                self.clear()
+            }
+        })
+
+        // Lyrify says what it plays as soon as its player is up: nothing to ask at launch.
+        if isRunning { send("refresh") }
+    }
+
+    func stop() {
+        observers.forEach {
+            DistributedNotificationCenter.default().removeObserver($0)
+            NSWorkspace.shared.notificationCenter.removeObserver($0)
+        }
+        observers.removeAll()
+    }
+
+    func scheduleRefresh() { send("refresh") }
+
+    /// The answer comes back as a `nowPlaying` notification.
+    func refresh() async { send("refresh") }
+
+    // Lyrify posts its new state itself after each command.
+    func togglePlayPause() async { send("playpause") }
+    func nextTrack() async { send("next") }
+    func previousTrack() async { send("previous") }
+    func seek(to seconds: TimeInterval) async { send("seek:\(max(0, seconds))") }
+
+    func fetchArtwork(for track: NowPlayingTrack) async -> NSImage? {
+        await NSImage.download(track.artworkURL)
+    }
+
+    private func send(_ command: String) {
+        guard isRunning else { clear(); return }
+        DistributedNotificationCenter.default().postNotificationName(
+            Self.commandNotificationName, object: command, userInfo: nil, deliverImmediately: true
+        )
+    }
+
+    private func receive(_ json: String?) {
+        guard let data = json?.data(using: .utf8) else { return }
+        let payload: Payload
+        do {
+            payload = try JSONDecoder().decode(Payload.self, from: data)
+        } catch {
+            lastError = "Lyrify: unreadable state (\(error.localizedDescription))"
+            Log.media.error("Lyrify: unreadable state: \(error.localizedDescription, privacy: .public)")
+            onUpdate?()
+            return
+        }
+        lastError = nil
+        let state = PlayerState(rawValue: payload.state) ?? .stopped
+        guard state != .stopped, !payload.title.isEmpty else { clear(); return }
+        let track = NowPlayingTrack(
+            id: payload.id.isEmpty ? "\(payload.title)|\(payload.artist)" : payload.id,
+            title: payload.title,
+            artist: payload.artist,
+            album: payload.album,
+            duration: max(0, payload.duration),
+            source: source,
+            artworkURL: payload.artwork.flatMap(URL.init(string:))
+        )
+        let new = ProviderSnapshot(state: state, position: max(0, payload.position), track: track)
+        if new != snapshot {
+            snapshot = new
+            lastChange = Date()
+        }
+        onUpdate?()
+    }
+
+    private func clear() {
+        guard snapshot != nil else { return }
+        snapshot = nil
+        lastChange = Date()
+        onUpdate?()
+    }
+}
+
 // MARK: - Service
 
 /// Aggregates the providers into one "now playing" state for the UI.
@@ -342,7 +495,7 @@ final class MediaService {
     @ObservationIgnored var preferredPlayer: () -> PlayerPreference = { .automatic }
     @ObservationIgnored var onTrackChanged: ((NowPlayingTrack) -> Void)?
 
-    @ObservationIgnored private var providers: [ScriptedMediaProvider] = []
+    @ObservationIgnored private var providers: [any MediaProvider] = []
     @ObservationIgnored private var artworkCache: [String: (NSImage, Color?, [Color])] = [:]
     @ObservationIgnored private var artworkTask: Task<Void, Never>?
 
@@ -353,7 +506,11 @@ final class MediaService {
     }
 
     func start() {
-        providers = MediaSource.allCases.map { ScriptedMediaProvider(source: $0) }
+        providers = [
+            ScriptedMediaProvider(source: .music),
+            ScriptedMediaProvider(source: .spotify),
+            LyrifyMediaProvider(),
+        ]
         for provider in providers {
             provider.onUpdate = { [weak self] in self?.recompute() }
             provider.start()
@@ -387,7 +544,7 @@ final class MediaService {
         seek(to: fraction * track.duration)
     }
 
-    private var activeProvider: ScriptedMediaProvider? {
+    private var activeProvider: (any MediaProvider)? {
         providers.first { $0.source == activeSource }
     }
 
@@ -396,14 +553,10 @@ final class MediaService {
         lastError = providers.compactMap(\.lastError).first
 
         let available = providers.filter { $0.snapshot?.track != nil }
-        let chosen: ScriptedMediaProvider? = {
-            switch preferredPlayer() {
-            case .music:
-                if let p = available.first(where: { $0.source == .music }) { return p }
-            case .spotify:
-                if let p = available.first(where: { $0.source == .spotify }) { return p }
-            case .automatic:
-                break
+        let chosen: (any MediaProvider)? = {
+            if let preferred = preferredPlayer().source,
+               let p = available.first(where: { $0.source == preferred }) {
+                return p
             }
             let playing = available.filter { $0.snapshot?.state == .playing }
             if let latestPlaying = playing.max(by: { $0.lastChange < $1.lastChange }) { return latestPlaying }
@@ -434,7 +587,7 @@ final class MediaService {
         }
     }
 
-    private func loadArtwork(for track: NowPlayingTrack, from provider: ScriptedMediaProvider) {
+    private func loadArtwork(for track: NowPlayingTrack, from provider: any MediaProvider) {
         artworkTask?.cancel()
         let cacheKey = "\(track.source.rawValue)|\(track.id)"
         if let cached = artworkCache[cacheKey] {
@@ -466,6 +619,13 @@ final class MediaService {
 // MARK: - Artwork colour
 
 extension NSImage {
+    /// The artwork behind an HTTPS URL (Spotify, Lyrify).
+    static func download(_ url: URL?) async -> NSImage? {
+        guard let url else { return nil }
+        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        return NSImage(data: data)
+    }
+
     /// Average colour of the artwork, lifted so it reads well on black.
     nonisolated func dominantTint() -> Color? {
         guard let tiff = tiffRepresentation, let ciImage = CIImage(data: tiff) else { return nil }

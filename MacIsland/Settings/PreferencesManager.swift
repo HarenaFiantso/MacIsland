@@ -45,13 +45,24 @@ enum ScreenMode: String, CaseIterable, Identifiable, DefaultsRepresentable {
 }
 
 enum PlayerPreference: String, CaseIterable, Identifiable, DefaultsRepresentable {
-    case automatic, music, spotify
+    case automatic, music, spotify, lyrify
     var id: String { rawValue }
     var title: String {
         switch self {
         case .automatic: return "Automatic (whichever is playing)"
         case .music: return "Apple Music"
         case .spotify: return "Spotify"
+        case .lyrify: return "Lyrify"
+        }
+    }
+
+    /// The player picked, `nil` for automatic.
+    var source: MediaSource? {
+        switch self {
+        case .automatic: return nil
+        case .music: return .music
+        case .spotify: return .spotify
+        case .lyrify: return .lyrify
         }
     }
 }

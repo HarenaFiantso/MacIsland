@@ -2,8 +2,8 @@
 
 A native Dynamic Island for the MacBook notch.
 
-MacIsland turns the notch into a small control centre: media controls for Apple Music
-and Spotify, a drop shelf for files, upcoming calendar events, a timer, battery status
+MacIsland turns the notch into a small control centre: media controls for Apple Music,
+Spotify and Lyrify, a drop shelf for files, upcoming calendar events, a timer, battery status
 and live activities (volume, power, timer, drops) — all inside a pure-black shape that
 grows out of the notch with interruptible spring animations, then disappears back into
 it. Inspired by NotchNook, written from scratch in Swift.
@@ -25,7 +25,8 @@ notch get a virtual one, sized to taste.
 a scrubber with elapsed and remaining time, playback bars tinted with the artwork
 colour, and a slow glow along the bottom of the panel in the artwork's dominant
 colours. Apple Music and Spotify are driven through their public scripting interfaces
-and their playback notifications: nothing polls while idle.
+and their playback notifications, Lyrify through distributed notifications both ways:
+nothing polls while idle.
 
 **File shelf.** Drag files onto the notch: the island opens on the shelf tab, drop to
 park them. Drag them back out into the Finder or any app, reorder by dragging, click for

@@ -97,7 +97,7 @@ struct MediaPlayerView: View {
                     PrivacyPane.automation.open()
                 }
             } else if media.runningSources.isEmpty {
-                Text("Open Music or Spotify")
+                Text("Open Music, Spotify or Lyrify")
                     .font(IslandDesign.label(10.5))
                     .foregroundStyle(IslandDesign.tertiary)
             } else {
